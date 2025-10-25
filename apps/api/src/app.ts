@@ -5,6 +5,10 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import { ENV } from "./lib/env";
 import { logger } from "./lib/logger";
+import { authRouter } from "./routes/auth.routes";
+import { profileRouter } from "./routes/profile.routes";
+import { issueCsrf, requireCsrf } from "./middleware/csrf";
+import { captureClient } from "./middleware/client-info";
 
 const app = express();
 app.disable("x-powered-by");
@@ -15,19 +19,10 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 app.get("/v1/health", (_req, res) => res.json({ ok: true }));
-
-// TODO: mount domain routes here
-
-// Central error handler (Problem Details style)
-app.use((err: any, _req: any, res: any, _next: any) => {
-  const status = err.status || 500;
-  res.status(status).json({
-    type: err.type || "about:blank",
-    title: err.title || "Internal Server Error",
-    status,
-    detail: err.message || "",
-    instance: _req?.path || "",
-  });
-});
+app.use("/v1/auth", authRouter);
+app.use(captureClient);
+app.use(issueCsrf);
+app.use(requireCsrf);
+app.use("/v1/profile", profileRouter);
 
 export default app;

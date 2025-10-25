@@ -6,3 +6,108 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String?
+  pictureUrl     String?
+  provider       AuthProvider    @default(EMAIL)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  profiles       Profile[]
+  resumes        Resume[]
+  refreshTokens  RefreshToken[]
+  handshakeCodes HandshakeCode[]
+  oAuthAccounts  OAuthAccount[]
+  sessions       Session[]
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  LINKEDIN
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  userId      String
+  hashedToken String   @unique
+  revoked     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model HandshakeCode {
+  id        String    @id @default(cuid())
+  userId    String
+  code      String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Profile {
+  id         String   @id @default(cuid())
+  userId     String
+  label      String   @default("Default")
+  personal   Json?
+  education  Json?
+  skills     Json?
+  experience Json?
+  projects   Json?
+  isDefault  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumes    Resume[]
+
+  @@index([userId])
+}
+
+model Resume {
+  id         String   @id @default(cuid())
+  userId     String
+  profileId  String?
+  storageUrl String
+  checksum   String   @unique
+  mime       String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile    Profile? @relation(fields: [profileId], references: [id])
+
+  @@index([userId])
+}
+
+model OAuthAccount {
+  id         String   @id @default(cuid())
+  userId     String
+  provider   String
+  providerId String // sub from provider
+  email      String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  refreshId  String? // optional link to RefreshToken.id
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  revoked    Boolean  @default(false)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
