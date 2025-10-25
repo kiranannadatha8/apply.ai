@@ -2,13 +2,18 @@
   "name": "apply-ai",
   "private": true,
   "scripts": {
+    "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "e2e": "turbo run e2e",
+    "codegen": "node scripts/codegen-openapi.mjs",
+    "db:up": "docker compose -f apps/api/docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f apps/api/docker-compose.dev.yml down -v"
   },
   "devDependencies": {
+    "eslint": "^9.38.0",
     "prettier": "^3.6.2",
     "turbo": "^2.5.8",
     "typescript": "5.9.2"
@@ -16,5 +21,8 @@
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "zod": "^4.1.12"
   }
 }
