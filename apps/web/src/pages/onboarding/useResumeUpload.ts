@@ -1,5 +1,5 @@
 import { post } from "../../app/api";
-import { useAuth } from "../../app/auth";
+import { useAuth } from "../../stores/auth";
 
 export async function uploadAndParse(file: File) {
   const token = useAuth.getState().accessToken!;

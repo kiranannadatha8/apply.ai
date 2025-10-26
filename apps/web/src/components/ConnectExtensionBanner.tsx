@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "../app/auth";
+import { useAuth } from "../stores/auth";
 
 export function ConnectExtensionBanner() {
   const token = useAuth((s) => s.accessToken);

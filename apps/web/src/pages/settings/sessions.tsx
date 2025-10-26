@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchWithAuth } from "../../app/auth";
+import { fetchWithAuth } from "../../stores/auth";
 
 export default function Sessions() {
   const [rows, setRows] = useState<any[]>([]);

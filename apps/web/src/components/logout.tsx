@@ -1,5 +1,5 @@
 import { post } from "../app/api";
-import { useAuth } from "../app/auth";
+import { useAuth } from "../stores/auth";
 export function LogoutBtn() {
   const set = useAuth((s) => s.setToken);
   return (

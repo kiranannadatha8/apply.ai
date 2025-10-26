@@ -273,8 +273,8 @@ export async function oauthCallback(req: Request, res: Response) {
     user = await prisma.user.create({
       data: {
         email,
-        name: id.name ?? null,
-        pictureUrl: id.picture ?? null,
+        name: typeof id.name === "string" ? id.name : null,
+        pictureUrl: typeof id.picture === "string" ? id.picture : null,
         provider: "GOOGLE" as any,
       },
     });

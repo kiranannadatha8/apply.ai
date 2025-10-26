@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { post } from "../../app/api";
-import { useAuth } from "../../app/auth";
+import { useAuth } from "../../stores/auth";
 export default function Magic() {
   const setToken = useAuth((s) => s.setToken);
   useEffect(() => {
