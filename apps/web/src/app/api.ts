@@ -1,19 +1,45 @@
+import type { ResumeParseResult } from "@/pages/onboarding/types";
+import { useAuth } from "@/stores/auth";
+
 export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
-export async function post<T>(path: string, body: any, token?: string) {
+export async function post<T>(path: string, body: any, token?: string | null) {
+  const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    "x-csrf-token": getCsrfFromCookie(),
+  };
+  let requestBody: BodyInit;
+  if (body instanceof FormData) {
+    requestBody = body;
+  } else {
+    headers["Content-Type"] = "application/json";
+    requestBody = JSON.stringify(body);
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "x-csrf-token": getCsrfFromCookie(),
-    },
+    headers: headers,
     credentials: "include",
-    body: JSON.stringify(body),
+    body: requestBody,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<T>;
+
+  if (!res.ok) {
+    let errorText: string;
+    try {
+      errorText = await res.text();
+    } catch (e) {
+      errorText = res.statusText;
+    }
+    throw new Error(errorText || "Request failed");
+  }
+
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return res.json() as Promise<T>;
+  }
+  return {} as Promise<T>; // Return empty object for non-json responses
 }
+
 export async function get<T>(path: string, token?: string) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -78,6 +104,14 @@ export const createHandshake = () => {
 
 export const redeemHandshake = (id: string) => {
   return post<{ accessToken: string }>("/v1/auth/ext/session/redeem", { id });
+};
+
+export const resumeParser = (file: FormData) => {
+  return post<ResumeParseResult>(
+    "/v1/profile/resumes/parse",
+    file,
+    useAuth.getState().accessToken,
+  );
 };
 
 function getCsrfFromCookie() {

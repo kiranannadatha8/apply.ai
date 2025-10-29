@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { presignPut } from "../lib/s3";
 import { enqueueParse } from "../workers/resume-parse.worker";
+import { redis } from "../lib/redis";
+import { parseResumeFn } from "../services/onboarding";
 
 export async function getProfile(req: Request, res: Response) {
   // Simplified: read by access token (similar to /me); assume middleware later
@@ -48,11 +50,15 @@ export async function presign(req: Request, res: Response) {
 }
 
 export async function parseResume(req: Request, res: Response) {
-  const bearer = req.headers.authorization?.split(" ")[1];
-  if (!bearer) return res.status(401).json({ title: "Missing token" });
-  const { sub } = (await import("../lib/token")).verifyAccess<any>(bearer);
-  const { key, mime } = req.body as any;
+  const file = (req as any).file as Express.Multer.File;
+  if (!file) return res.status(400).json({ title: "Missing file" });
+  const result = await parseResumeFn(file.buffer, file.originalname);
+  res.json(result);
+}
+
+export async function parseStatus(req: Request, res: Response) {
+  const { key } = req.query as any;
   if (!key) return res.status(400).json({ title: "Missing key" });
-  await enqueueParse(sub, key, mime ?? "application/pdf");
-  res.json({ enqueued: true });
+  const val = await redis.get(`resume:parsed:${key}`);
+  res.json({ done: val === "1" });
 }

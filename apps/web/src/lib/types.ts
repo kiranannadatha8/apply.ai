@@ -21,6 +21,7 @@ export interface User {
   handshakeCodes: HandshakeCode[];
   oAuthAccounts: OAuthAccount[];
   sessions: Session[];
+  onboardingCompleted: boolean;
 }
 
 /**
@@ -112,4 +113,9 @@ export interface Session {
   lastSeenAt: Date;
   revoked: boolean;
   user: User;
+}
+
+export interface Steps {
+  key: string;
+  label: string;
 }

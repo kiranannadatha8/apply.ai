@@ -9,6 +9,8 @@ import { authRouter } from "./routes/auth.routes";
 import { profileRouter } from "./routes/profile.routes";
 import { issueCsrf, requireCsrf } from "./middleware/csrf";
 import { captureClient } from "./middleware/client-info";
+import { userRouter } from "./routes/user.routes";
+import { requireAccess } from "./middleware/auth";
 
 const app = express();
 app.disable("x-powered-by");
@@ -23,6 +25,7 @@ app.use("/v1/auth", authRouter);
 app.use(captureClient);
 app.use(issueCsrf);
 app.use(requireCsrf);
-app.use("/v1/profile", profileRouter);
+app.use("/v1/user", requireAccess, userRouter);
+app.use("/v1/profile", requireAccess, profileRouter);
 
 export default app;

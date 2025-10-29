@@ -8,19 +8,20 @@ generator client {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  email          String          @unique
-  name           String?
-  pictureUrl     String?
-  provider       AuthProvider    @default(EMAIL)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  profiles       Profile[]
-  resumes        Resume[]
-  refreshTokens  RefreshToken[]
-  handshakeCodes HandshakeCode[]
-  oAuthAccounts  OAuthAccount[]
-  sessions       Session[]
+  id                  String          @id @default(cuid())
+  email               String          @unique
+  name                String?
+  pictureUrl          String?
+  provider            AuthProvider    @default(EMAIL)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  profiles            Profile[]
+  resumes             Resume[]
+  refreshTokens       RefreshToken[]
+  handshakeCodes      HandshakeCode[]
+  oAuthAccounts       OAuthAccount[]
+  sessions            Session[]
+  onboardingCompleted Boolean         @default(false)
 }
 
 enum AuthProvider {

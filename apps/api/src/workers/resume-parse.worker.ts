@@ -109,6 +109,7 @@ new Worker(
       await prisma.profile.create({
         data: { userId, isDefault: true, ...prof },
       });
+    await connection.set(`resume:parsed:${key}`, "1", "EX", 3600);
     return { ok: true };
   },
   { connection, concurrency: 5 },

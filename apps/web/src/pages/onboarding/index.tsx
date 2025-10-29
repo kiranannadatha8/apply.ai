@@ -1,77 +1,171 @@
 import { useState } from "react";
-import { post, get } from "../../app/api";
-import { uploadAndParse } from "./useResumeUpload";
+import Wrapper from "./components/Wrapper";
+import { resumeParser } from "@/app/api";
+import type {
+  ContactInfo,
+  EducationItem,
+  ExperienceItem,
+  ProjectItem,
+  Provenance,
+  ResumeParseResult,
+} from "./types";
 
-type Step = 1 | 2 | 3;
-export default function OnboardingPage() {
-  const [step, setStep] = useState<Step>(1);
-  // TODO: obtain access token from storage/context after login
+const emptyScoredString = {
+  value: null,
+  confidence: 0,
+  source: "rule" as Provenance,
+  warnings: [],
+};
+
+const emptyScoredStringArray = {
+  value: [],
+  confidence: 0,
+  source: "rule" as Provenance,
+  warnings: [],
+};
+
+const emptyLocation = {
+  street: { ...emptyScoredString },
+  city: { ...emptyScoredString },
+  state: { ...emptyScoredString },
+  zip: { ...emptyScoredString },
+};
+
+const emptyLinks = {
+  title: { ...emptyScoredString },
+  url: { ...emptyScoredString },
+};
+
+const emptyProject: ProjectItem = {
+  title: { ...emptyScoredString },
+  links: [{ ...emptyLinks }],
+  technologies: { ...emptyScoredStringArray },
+  bullets: { ...emptyScoredStringArray },
+  dates: {
+    startMonth: "",
+    startYear: "",
+    endMonth: "",
+    endYear: "",
+    isCurrent: false,
+    source: "rule" as Provenance,
+    confidence: 0,
+  },
+};
+
+export const EMPTY_RESUME_PARSE_RESULT: ResumeParseResult = {
+  meta: {
+    fileType: "",
+    pageCount: 0,
+    ocrUsed: false,
+  },
+  contact: {
+    name: { ...emptyScoredString },
+    email: { ...emptyScoredString },
+    phone: { ...emptyScoredString },
+    links: [{ ...emptyLinks }],
+    location: { ...emptyLocation },
+  },
+  sections: [],
+  experience: [],
+  education: [],
+  projects: [{ ...emptyProject }],
+  skills: {
+    raw: { ...emptyScoredStringArray },
+    categorized: {
+      value: {},
+      confidence: 0,
+      source: "rule" as Provenance,
+    },
+  },
+  summary: { ...emptyScoredString },
+  warnings: [],
+  errors: [],
+};
+
+export const OnboardingPage = () => {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [profile, setProfile] = useState<ResumeParseResult>(
+    EMPTY_RESUME_PARSE_RESULT,
+  );
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [skillsText, setSkillsText] = useState<string>("");
+
+  const handleResumeUpload = async (file: File) => {
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("resume", file);
+      const response = await resumeParser(formData);
+      setProfile(response);
+      setStepIndex(1);
+    } catch (err: any) {
+      setError(err.message ?? "Unable to analyze resume. Please try again.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const updateDetails = (field: keyof ContactInfo, value: string) => {
+    setProfile((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateEducation = (
+    index: number,
+    field: keyof EducationItem,
+    value: string,
+  ) => {
+    setProfile((prev) => {
+      const next = [...prev.education];
+      next[index] = { ...next[index], [field]: value };
+      return { ...prev, education: next };
+    });
+  };
+
+  const updateExperience = (
+    index: number,
+    field: keyof ExperienceItem,
+    value: string | string[],
+  ) => {
+    setProfile((prev) => {
+      const next = [...prev.experience];
+      next[index] = { ...next[index], [field]: value };
+      return { ...prev, experience: next };
+    });
+  };
+
+  const updateProject = (
+    index: number,
+    field: keyof ProjectItem,
+    value: string | string[],
+  ) => {
+    setProfile((prev) => {
+      const next = [...prev.projects];
+      next[index] = { ...next[index], [field]: value };
+      return { ...prev, projects: next };
+    });
+  };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-4">Onboarding</h1>
-      <ol className="flex gap-4 mb-6">
-        <li className={step >= 1 ? "font-bold" : ""}>1. Upload Resume</li>
-        <li className={step >= 2 ? "font-bold" : ""}>2. Parse</li>
-        <li className={step >= 3 ? "font-bold" : ""}>3. Review & Save</li>
-      </ol>
-      {step === 1 && <UploadResume onNext={() => setStep(2)} />}
-      {step === 2 && <ParsePreview onNext={() => setStep(3)} />}
-      {step === 3 && <ReviewAndSave />}
-    </div>
+    <Wrapper
+      stepIndex={stepIndex}
+      setStepIndex={setStepIndex}
+      profile={profile}
+      setProfile={setProfile}
+      analyzing={analyzing}
+      setAnalyzing={setAnalyzing}
+      error={error}
+      setError={setError}
+      handleResumeUpload={handleResumeUpload}
+      updateEducation={updateEducation}
+      updateExperience={updateExperience}
+      updateProject={updateProject}
+      skillsText={skillsText}
+      setSkillsText={setSkillsText}
+      updateDetails={updateDetails}
+    />
   );
-}
+};
 
-function UploadResume({ onNext }: { onNext: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  return (
-    <div>
-      <input
-        type="file"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-      />
-      <button
-        disabled={!file}
-        onClick={async () => {
-          if (file) {
-            await uploadAndParse(file);
-            onNext();
-          }
-        }}
-      >
-        Continue
-      </button>
-    </div>
-  );
-}
-
-function ParsePreview({ onNext }: { onNext: () => void }) {
-  return (
-    <div>
-      <p className="text-sm text-gray-500">Parsing your resume…</p>
-      <button className="btn mt-4" onClick={onNext}>
-        Continue
-      </button>
-    </div>
-  );
-}
-
-function ReviewAndSave() {
-  return (
-    <form className="grid gap-3">
-      <label>
-        Full Name
-        <input className="border p-2 w-full" />
-      </label>
-      <label>
-        Email
-        <input className="border p-2 w-full" />
-      </label>
-      <label>
-        Skills
-        <textarea className="border p-2 w-full" />
-      </label>
-      <button className="btn">Save Profile</button>
-    </form>
-  );
-}
+export default OnboardingPage;
