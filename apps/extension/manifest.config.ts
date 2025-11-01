@@ -1,16 +1,30 @@
-export default {
+import { defineManifest } from "@crxjs/vite-plugin";
+
+const manifest = defineManifest({
   manifest_version: 3,
-  name: "apply.ai",
+  name: "ApplyAI Job Detector",
   version: "0.1.0",
-  action: { default_popup: "popup.html" },
-  permissions: ["storage", "scripting", "activeTab"],
+  description:
+    "Detects job pages and extracts key fields with confidence scoring.",
+  permissions: ["storage", "activeTab", "scripting"],
   host_permissions: ["https://*/*", "http://*/*"],
-  background: { service_worker: "src/background/index.ts" },
+  background: { service_worker: "src/background/index.ts", type: "module" },
   content_scripts: [
     {
       matches: ["https://*/*", "http://*/*"],
-      js: ["src/content/detect.ts"],
+      js: ["src/content/detection-runner.ts"],
       run_at: "document_idle",
     },
   ],
-} as const;
+  icons: {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png",
+  },
+  action: {
+    default_title: "ApplyAI",
+  },
+});
+
+export default manifest;
