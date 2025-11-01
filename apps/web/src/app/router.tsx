@@ -5,6 +5,7 @@ import Magic from "@/pages/magic";
 import OnboardingPage from "@/pages/onboarding";
 import Sessions from "@/pages/settings/sessions";
 import Devices from "@/pages/settings/devices";
+import { Dashboard } from "@/pages/dashboard";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -12,7 +13,8 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
-      { path: "/", element: <>Dashboard</> },
+      { path: "/", element: <Dashboard /> },
+
       { path: "/onboarding", element: <OnboardingPage /> },
       { path: "/settings/sessions", element: <Sessions /> },
       { path: "/settings/devices", element: <Devices /> },

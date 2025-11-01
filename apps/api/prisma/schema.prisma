@@ -22,6 +22,7 @@ model User {
   oAuthAccounts       OAuthAccount[]
   sessions            Session[]
   onboardingCompleted Boolean         @default(false)
+  job                 Job[]
 }
 
 enum AuthProvider {
@@ -111,4 +112,91 @@ model Session {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+enum JobStatus {
+  SAVED
+  APPLIED
+  INTERVIEW
+  OFFER
+  REJECTED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+  TEMP
+  OTHER
+}
+
+enum SourceKind {
+  WORKDAY
+  GREENHOUSE
+  LEVER
+  LINKEDIN
+  INDEED
+  COMPANY_SITE
+  OTHER
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  userId    String // per-user namespace to avoid global coupling
+  name      String
+  website   String?
+  domain    String? // e.g., example.com
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs Job[]
+
+  @@unique([userId, domain])
+  @@unique([userId, name]) // pragmatic guard; can be relaxed if needed
+  @@index([userId])
+}
+
+model Job {
+  id             String          @id @default(cuid())
+  userId         String
+  companyId      String?
+  title          String
+  location       String?
+  remote         Boolean         @default(false)
+  employment     EmploymentType?
+  salaryMin      Int?
+  salaryMax      Int?
+  salaryCurrency String? // "USD"
+  salaryPeriod   String? // "YEAR", "HOUR"
+  status         JobStatus       @default(SAVED)
+
+  // Source/Import
+  sourceKind    SourceKind? // GREENHOUSE, WORKDAY, etc.
+  sourceId      String? // external job id if known
+  jobUrl        String? // public job posting URL
+  canonicalHash String? // sha256(host+path normalized)
+  jdText        String? // raw description text (optional for now)
+
+  // Timestamps for audit & analytics
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  savedAt     DateTime  @default(now())
+  appliedAt   DateTime?
+  interviewAt DateTime?
+  offerAt     DateTime?
+  rejectedAt  DateTime?
+  boardOrder  Int       @default(0)
+
+  tags  Json? // string[]
+  notes String?
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([companyId])
+  @@index([userId, canonicalHash])
+  @@index([userId, sourceKind, sourceId])
+  @@index([userId, status, boardOrder])
 }

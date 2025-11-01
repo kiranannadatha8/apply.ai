@@ -10,7 +10,11 @@ import { profileRouter } from "./routes/profile.routes";
 import { issueCsrf, requireCsrf } from "./middleware/csrf";
 import { captureClient } from "./middleware/client-info";
 import { userRouter } from "./routes/user.routes";
+import { dashboardRouter } from "./routes/dashboard.routes";
 import { requireAccess } from "./middleware/auth";
+import { jobsRouter } from "./routes/jobs.routes";
+import { jobsExtRouter } from "./routes/jobs.ext.routes";
+import { jobsBoardRouter } from "./routes/jobs.board.routes";
 
 const app = express();
 app.disable("x-powered-by");
@@ -27,5 +31,9 @@ app.use(issueCsrf);
 app.use(requireCsrf);
 app.use("/v1/user", requireAccess, userRouter);
 app.use("/v1/profile", requireAccess, profileRouter);
+app.use("/v1/dashboard", requireAccess, dashboardRouter);
+app.use("/v1/jobs", requireAccess, jobsRouter);
+app.use("/v1/jobs/board", requireAccess, jobsBoardRouter);
+app.use("/v1/ext/jobs", requireAccess, jobsExtRouter);
 
 export default app;
