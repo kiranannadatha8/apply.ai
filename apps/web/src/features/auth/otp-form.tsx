@@ -21,7 +21,6 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { useState } from "react";
-import type { User } from "@/lib/types";
 
 interface OTPFormProps {
   onAuthed: (user: any) => void;

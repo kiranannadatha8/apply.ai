@@ -7,6 +7,10 @@ import {
   upsertCompanyForUser,
 } from "../services/company.service";
 import { canonicalizeUrl } from "../lib/canonicalize";
+import {
+  logJobEvent,
+  logStatusChange,
+} from "../services/job-event.service";
 
 // ---------- Schemas ----------
 const JobCreateZ = z.object({
@@ -151,6 +155,21 @@ export async function get(req: Request, res: Response) {
   res.json(row);
 }
 
+export async function events(req: Request, res: Response) {
+  const userId = (req as any).userId as string;
+  const id = req.params.id;
+  const job = await prisma.job.findFirst({
+    where: { id, userId },
+    select: { id: true },
+  });
+  if (!job) return res.status(404).json({ title: "Not found" });
+  const events = await (prisma as any).jobEvent.findMany({
+    where: { userId, jobId: id },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json({ items: events });
+}
+
 export async function create(req: Request, res: Response) {
   const userId = (req as any).userId as string;
   const body = JobCreateZ.parse(req.body);
@@ -214,6 +233,30 @@ export async function create(req: Request, res: Response) {
       })
     : await prisma.job.create({ data: doc });
 
+  if (existing) {
+    await logJobEvent({
+      userId,
+      jobId: created.id,
+      kind: "UPDATED",
+      metadata: { source: "jobs#create" },
+    });
+  } else {
+    await logJobEvent({
+      userId,
+      jobId: created.id,
+      kind: "CREATED",
+    });
+  }
+
+  if ((body.status ?? "SAVED") !== existing?.status) {
+    await logStatusChange({
+      userId,
+      jobId: created.id,
+      fromStatus: existing?.status ?? null,
+      toStatus: body.status ?? "SAVED",
+    });
+  }
+
   res.status(existing ? 200 : 201).json(created);
 }
 
@@ -271,6 +314,22 @@ export async function update(req: Request, res: Response) {
     },
     include: { company: true },
   });
+
+  await logJobEvent({
+    userId,
+    jobId: updated.id,
+    kind: "UPDATED",
+    metadata: { source: "jobs#update" },
+  });
+
+  if (body.status && body.status !== row.status) {
+    await logStatusChange({
+      userId,
+      jobId: updated.id,
+      fromStatus: row.status,
+      toStatus: body.status,
+    });
+  }
   res.json(updated);
 }
 
@@ -295,6 +354,14 @@ export async function bulk(req: Request, res: Response) {
       ...timestampsForStatus(body.status),
     });
 
+  let priorStatuses: Array<{ id: string; status: string }> = [];
+  if (body.status) {
+    priorStatuses = await prisma.job.findMany({
+      where,
+      select: { id: true, status: true },
+    });
+  }
+
   // tags merge/remove
   if (body.tagsAdd || body.tagsRemove) {
     const rows = await prisma.job.findMany({
@@ -317,5 +384,19 @@ export async function bulk(req: Request, res: Response) {
   }
 
   const result = await prisma.job.updateMany({ where, data });
+
+  if (body.status && priorStatuses.length) {
+    await Promise.all(
+      priorStatuses.map((row) =>
+        logStatusChange({
+          userId,
+          jobId: row.id,
+          fromStatus: row.status,
+          toStatus: body.status!,
+        }),
+      ),
+    );
+  }
+
   res.json({ count: result.count });
 }

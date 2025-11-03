@@ -114,6 +114,10 @@ export const resumeParser = (file: FormData) => {
   );
 };
 
+export const getJobEvents = (jobId: string) => {
+  return get<{ items: unknown[] }>(`/v1/jobs/${jobId}/events`);
+};
+
 function getCsrfFromCookie() {
   const m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : "";

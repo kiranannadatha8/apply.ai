@@ -141,6 +141,15 @@ enum SourceKind {
   OTHER
 }
 
+enum JobEventKind {
+  CREATED
+  UPDATED
+  STATUS_CHANGE
+  AUTOFILL
+  APPLIED
+  NOTE
+}
+
 model Company {
   id        String   @id @default(cuid())
   userId    String // per-user namespace to avoid global coupling
@@ -193,10 +202,27 @@ model Job {
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events  JobEvent[]
 
   @@index([userId, status, createdAt])
   @@index([companyId])
   @@index([userId, canonicalHash])
   @@index([userId, sourceKind, sourceId])
   @@index([userId, status, boardOrder])
+}
+
+model JobEvent {
+  id        String       @id @default(cuid())
+  jobId     String
+  userId    String
+  kind      JobEventKind
+  message   String?
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+  @@index([userId, createdAt])
 }

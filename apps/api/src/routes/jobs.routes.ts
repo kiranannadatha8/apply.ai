@@ -9,6 +9,7 @@ jobsRouter.use(requireUser);
 
 jobsRouter.get("/", asyncWrap(ctrl.list));
 jobsRouter.get("/:id", asyncWrap(ctrl.get));
+jobsRouter.get("/:id/events", asyncWrap(ctrl.events));
 jobsRouter.post("/", asyncWrap(ctrl.create));
 jobsRouter.patch("/:id", asyncWrap(ctrl.update));
 jobsRouter.delete("/:id", asyncWrap(ctrl.remove));

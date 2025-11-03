@@ -12,6 +12,9 @@ export interface JobAnalysisRecord {
   coverNote: string;
   updatedAt: number;
   tokens?: { in: number; out: number; model?: string };
+  resumeVariantId?: string;
+  coverLetterAssetId?: string;
+  lastAutofillAt?: number;
 }
 
 export async function loadJobRecord(

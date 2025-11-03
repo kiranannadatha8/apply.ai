@@ -12,7 +12,7 @@ const manifest = defineManifest({
   content_scripts: [
     {
       matches: ["https://*/*", "http://*/*"],
-      js: ["src/content/detection-runner.ts"],
+      js: ["src/content/detection-runner.ts", "src/content/index.ts"],
       run_at: "document_idle",
     },
   ],

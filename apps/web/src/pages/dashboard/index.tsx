@@ -1,13 +1,11 @@
-import { TopNav } from "@/pages/job-board/components/top-nav";
 import { JobBoard } from "@/pages/job-board";
+import DashboardNavBar from "./nav-bar";
 
 export function Dashboard() {
   return (
-    <div className="min-h-screen">
-      <TopNav />
-      <main className="px-8">
-        <JobBoard />
-      </main>
-    </div>
+    <main className="flex min-h-screen flex-col bg-background">
+      <DashboardNavBar />
+      <JobBoard />
+    </main>
   );
 }

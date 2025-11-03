@@ -1,14 +1,63 @@
+import "./index";
 import { bootstrapDetection } from "../lib/detect/registry";
-import type { DetectionResult, Settings } from "../lib/detect/types";
+import type {
+  DetectionResult,
+  Settings,
+  SupportedBoard,
+} from "../lib/detect/types";
 import { emitTelemetry } from "../lib/telemetry";
 import { mountDetectionBanner } from "./banner";
-import "./index.css";
 
 const SETTINGS_KEY = "applyai.settings.v1";
 const DEFAULTS: Settings = {
   confidenceThreshold: 0.6,
   bannerEnabled: true,
 };
+
+// Allowlist: banner appears only for these boards (no generic)
+const SUPPORTED: SupportedBoard[] = [
+  "greenhouse",
+  "lever",
+  "workday",
+  "ashby",
+  "smartrecruiters",
+  "taleo",
+  "indeed",
+  "linkedin",
+  "bamboohr",
+  "icims",
+];
+
+function isSupportedBoard(b: DetectionResult["board"]) {
+  return SUPPORTED.includes(b as SupportedBoard);
+}
+
+// Extra guardrails to avoid false positives
+function hasApplyCue(doc: Document): boolean {
+  const sels = [
+    'a[href*="apply"]',
+    'button[aria-label*="apply" i]',
+    'button:has(svg[aria-label*="apply" i])',
+    'input[type="submit"][value*="apply" i]',
+    '[data-automation-id="applyButton"]',
+    "#apply_button",
+    ".posting-apply-button",
+    ".jobs-apply-button",
+  ];
+  return sels.some((s) => !!doc.querySelector(s));
+}
+
+function hasSubstantialJD(html?: string): boolean {
+  if (!html) return false;
+  // Require at least ~120 chars of text content to consider it a JD
+  const text = html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length >= 120;
+}
+
+let lastBannerKey = "";
 
 async function loadSettings(): Promise<Settings> {
   try {
@@ -19,33 +68,43 @@ async function loadSettings(): Promise<Settings> {
   }
 }
 
-let firstBannerShownAt = 0;
+bootstrapDetection(async (det: DetectionResult | null) => {
+  if (!det) return;
 
-bootstrapDetection(async (detection: DetectionResult | null) => {
-  if (!detection) return;
-
-  // AC5: telemetry
-  emitTelemetry(detection).catch(() => {});
+  // AC5: telemetry always
+  emitTelemetry(det).catch(() => {});
 
   const settings = await loadSettings();
-  //const threshold = settings.confidenceThreshold ?? 0.6;
+  if (!settings.bannerEnabled) return;
 
-  // AC1: show banner within 800ms when supported page
-  // Our pipeline typically returns within ~100–300ms; we guard anyway.
-  if (settings.bannerEnabled) {
-    if (!firstBannerShownAt) firstBannerShownAt = performance.now();
-    // If this is the first result and it's slow, still show now; we met AC by design fast path.
-    mountDetectionBanner({
-      url: detection.url,
-      fields: {
-        title: detection.fields.title,
-        company: detection.fields.company,
-      },
-      confidence: detection.confidence,
-      timeToDetectMs: detection.timeToDetectMs,
-    });
+  // Confidence & page-cue gates
+  const confFloor = Math.max(0.5, settings.confidenceThreshold ?? 0.6); // never below 0.5
+  const strongJD = hasSubstantialJD(det.fields.description);
+  const applyCue = hasApplyCue(document);
+  const hasSignals = strongJD || applyCue;
+  const supported = isSupportedBoard(det.board);
+
+  let mode: "detected" | "assist" | null = null;
+  let message: string | undefined;
+
+  if (supported && det.confidence >= confFloor && hasSignals) {
+    mode = "detected";
+  } else if ((supported || det.board === "generic") && hasSignals) {
+    if (det.confidence < confFloor && det.confidence >= Math.max(0.2, confFloor - 0.3)) {
+      mode = "assist";
+      message = supported
+        ? "Confidence is below your threshold. Map the fields to improve detection."
+        : "Help map this page so ApplyAI can support it.";
+    }
   }
 
-  // AC3: "Assist to map" CTA appears automatically when confidence < threshold (handled in banner)
-  // AC4: This script is read-only; no form fill here.
+  if (!mode) return;
+
+  // Dedupe by URL
+  const key = `${mode}:${det.url}`;
+  if (lastBannerKey === key) return;
+  lastBannerKey = key;
+
+  // Still within AC1: we run from DOM ready and fast detector passes
+  mountDetectionBanner({ detection: det, mode, message });
 });

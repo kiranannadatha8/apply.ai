@@ -7,6 +7,10 @@ import {
   upsertCompanyForUser,
   CompanyUpsertZ,
 } from "../services/company.service";
+import {
+  logJobEvent,
+  logStatusChange,
+} from "../services/job-event.service";
 
 // Extension-facing save endpoint (ext token)
 const ExtSaveZ = z.object({
@@ -30,6 +34,23 @@ const ExtSaveZ = z.object({
     .optional(),
   jdText: z.string().optional(),
   tags: z.array(z.string()).optional(),
+});
+
+const ExtApplyZ = z.object({
+  jobUrl: z.string().url(),
+  resumeVariantId: z.string().optional(),
+  answers: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        question: z.string().optional(),
+        artifactId: z.string().optional(),
+        text: z.string().optional(),
+      }),
+    )
+    .optional(),
+  coverLetterProvided: z.boolean().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export async function saveFromExtension(req: Request, res: Response) {
@@ -75,5 +96,73 @@ export async function saveFromExtension(req: Request, res: Response) {
       })
     : await prisma.job.create({ data: doc });
 
+  if (existing) {
+    await logJobEvent({
+      userId,
+      jobId: out.id,
+      kind: "UPDATED",
+      metadata: { source: "ext#save" },
+    });
+  } else {
+    await logJobEvent({ userId, jobId: out.id, kind: "CREATED" });
+  }
+
+  if ((out.status ?? "SAVED") !== existing?.status) {
+    await logStatusChange({
+      userId,
+      jobId: out.id,
+      fromStatus: existing?.status ?? null,
+      toStatus: out.status ?? "SAVED",
+    });
+  }
+
   res.status(existing ? 200 : 201).json({ id: out.id, status: out.status });
+}
+
+export async function applyFromExtension(req: Request, res: Response) {
+  const userId = (req as any).userId as string;
+  const body = ExtApplyZ.parse(req.body);
+  const { hash } = canonicalizeUrl(body.jobUrl);
+
+  const job = await prisma.job.findFirst({
+    where: {
+      userId,
+      OR: [{ canonicalHash: hash }, { jobUrl: body.jobUrl }],
+    },
+  });
+  if (!job) {
+    return res.status(404).json({ title: "Job not found" });
+  }
+
+  const now = new Date();
+  const updated = await prisma.job.update({
+    where: { id: job.id },
+    data: {
+      status: "APPLIED",
+      appliedAt: now,
+    },
+  });
+
+  if (job.status !== "APPLIED") {
+    await logStatusChange({
+      userId,
+      jobId: job.id,
+      fromStatus: job.status,
+      toStatus: "APPLIED",
+    });
+  }
+
+  await logJobEvent({
+    userId,
+    jobId: job.id,
+    kind: "APPLIED",
+    metadata: {
+      resumeVariantId: body.resumeVariantId ?? null,
+      answers: body.answers ?? [],
+      coverLetterProvided: body.coverLetterProvided ?? false,
+      extra: body.metadata ?? null,
+    },
+  });
+
+  res.json({ id: updated.id, status: updated.status });
 }

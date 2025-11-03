@@ -1,16 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import type { DetectionResult } from "../lib/detect/types";
 
 /** ============== Types ============== */
-export interface DetectionForBanner {
-  url: string;
-  fields: {
-    title?: string;
-    company?: string;
-  };
-  confidence: number; // 0..1
-  timeToDetectMs: number;
+export type BannerMode = "detected" | "assist";
+
+export interface BannerMountOptions {
+  detection: DetectionResult;
+  mode: BannerMode;
+  message?: string;
 }
 
 /** ============== Storage Keys ============== */
@@ -70,9 +69,10 @@ let dismissedThisLoad = false;
  * Public API: call when a job page is detected.
  * Invisible until called.
  */
-export async function mountDetectionBanner(det: DetectionForBanner) {
+export async function mountDetectionBanner(options: BannerMountOptions) {
   if (dismissedThisLoad) return;
 
+  const { detection: det, mode } = options;
   const domain = getDomain(det.url);
   const disabled = await getDisabledDomains();
   if (disabled.includes(domain)) return; // Invisible when disabled for this site
@@ -89,6 +89,8 @@ export async function mountDetectionBanner(det: DetectionForBanner) {
   root!.render(
     <Banner
       det={det}
+      mode={mode}
+      message={options.message}
       onDismiss={() => {
         dismissedThisLoad = true;
         unmountDetectionBanner();
@@ -110,13 +112,51 @@ export function unmountDetectionBanner() {
 /** ============== Banner Component ============== */
 function Banner({
   det,
+  mode,
+  message,
   onDismiss,
 }: {
-  det: DetectionForBanner;
+  det: DetectionResult;
+  mode: BannerMode;
+  message?: string;
   onDismiss: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hidden, setHidden] = useState(true); // for slide-in
+  const [saveState, setSaveState] = useState<"idle" | "pending">("idle");
+  const [status, setStatus] = useState<{
+    text: string;
+    tone: "success" | "info" | "warn";
+  } | null>(null);
+
+  useEffect(() => {
+    const listener = (message: any) => {
+      if (
+        message?.type === "applyai.saveJob.result" &&
+        message.payload?.url === det.url
+      ) {
+        setSaveState("idle");
+        const st = message.payload.status;
+        if (st === "created") {
+          setStatus({ text: "Saved to ApplyAI.", tone: "success" });
+        } else if (st === "updated") {
+          setStatus({ text: "Already saved in ApplyAI.", tone: "info" });
+        } else if (st === "queued") {
+          setStatus({ text: "Offline – will sync when back online.", tone: "warn" });
+        } else if (st === "error") {
+          setStatus({ text: "Save failed. Try again in a moment.", tone: "warn" });
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, [det.url]);
+
+  useEffect(() => {
+    if (!status) return;
+    const timer = setTimeout(() => setStatus(null), 4000);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     // Defer to ensure paint within ≤800ms from detection caller
@@ -129,6 +169,7 @@ function Banner({
 
   const title = det.fields.title ?? "Untitled role";
   const company = det.fields.company ?? "";
+  const confidencePct = pct(det.confidence);
 
   const disableOnThisSite = async () => {
     const list = await getDisabledDomains();
@@ -152,11 +193,6 @@ function Banner({
   };
 
   const onAnalyze = () => {
-    const jdHtml =
-      document.querySelector("[data-qa='job-description']")?.innerHTML ||
-      document.querySelector("#jobDescriptionText")?.innerHTML ||
-      document.body.innerText.slice(0, 50000);
-
     // Pull resume/profile from your store or background (user’s own data only).
     chrome.storage.local
       .get("applyai.userProfile.v1")
@@ -165,7 +201,9 @@ function Banner({
           type: "applyai.analyzeJob",
           payload: {
             url: det.url,
-            jdHtmlOrText: jdHtml,
+            jdHtmlOrText: det.fields.description
+              ? det.fields.description
+              : document.body.innerText.slice(0, 50000),
             title: det.fields.title,
             company: det.fields.company,
             resumeText: profile?.resumeText ?? "",
@@ -175,9 +213,50 @@ function Banner({
       });
   };
 
-  const onSave = () => {
+  const onAutofill = () => {
     chrome.runtime
-      .sendMessage({ type: "applyai.saveJob", payload: { url: det.url } })
+      .sendMessage({
+        type: "applyai.autofill.preview",
+        payload: {
+          detection: {
+            ...det,
+            // Strip heavy description HTML to keep message light
+            fields: {
+              ...det.fields,
+              description: undefined,
+            },
+          },
+        },
+      })
+      .catch(() => {});
+  };
+
+  const onAssist = () => {
+    chrome.runtime
+      .sendMessage({
+        type: "applyai.assistToMap",
+        payload: { url: det.url, board: det.board, confidence: det.confidence },
+      })
+      .catch(() => {});
+    setMenuOpen(false);
+  };
+
+  const onSave = () => {
+    setSaveState("pending");
+    setStatus(null);
+    chrome.runtime
+      .sendMessage({
+        type: "applyai.saveJob",
+        payload: {
+          detection: {
+            ...det,
+            fields: {
+              ...det.fields,
+              description: det.fields.description?.slice(0, 20000),
+            },
+          },
+        },
+      })
       .catch(() => {});
   };
 
@@ -195,7 +274,7 @@ function Banner({
         className={[
           "flex items-center gap-2",
           "rounded-full border border-neutral-800/70 bg-neutral-900/95",
-          "shadow-xl backdrop-blur supports-[backdrop-filter]:backdrop-saturate-150",
+          "shadow-xl backdrop-blur supports-backdrop-filter:backdrop-saturate-150",
           "px-3 py-2",
           "text-neutral-200",
           "max-w-[460px]",
@@ -218,8 +297,9 @@ function Banner({
         {/* Title / Company (truncated) */}
         <div className="min-w-0 flex-1">
           <div className="text-xs text-neutral-400 leading-none mb-0.5">
-            Job detected • {domain} • {pct(det.confidence)} •{" "}
-            {det.timeToDetectMs}ms
+            {mode === "detected"
+              ? `Job detected • ${domain} • ${confidencePct} • ${det.timeToDetectMs}ms`
+              : `Low confidence (${confidencePct}) • ${domain}`}
           </div>
           <div className="text-sm font-semibold truncate" title={title}>
             {title}
@@ -229,33 +309,81 @@ function Banner({
               {company}
             </div>
           ) : null}
+          {status ? (
+            <div
+              className={[
+                "text-[11px] mt-0.5",
+                status.tone === "success"
+                  ? "text-emerald-300"
+                  : status.tone === "info"
+                    ? "text-blue-300"
+                    : "text-amber-300",
+              ].join(" ")}
+            >
+              {status.text}
+            </div>
+          ) : null}
+          {mode === "assist" && message ? (
+            <div className="text-[11px] text-neutral-500 mt-0.5">{message}</div>
+          ) : null}
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={onAnalyze}
-            className={[
-              "px-3 py-1.5 rounded-full text-xs font-semibold",
-              "bg-emerald-500/15 text-emerald-300 border border-emerald-600/40",
-              "hover:bg-emerald-500/25 active:scale-[0.99] transition",
-              "focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
-            ].join(" ")}
-          >
-            Analyze
-          </button>
+          {mode === "detected" ? (
+            <>
+              <button
+                onClick={onAnalyze}
+                className={[
+                  "px-3 py-1.5 rounded-full text-xs font-semibold",
+                  "bg-emerald-500/15 text-emerald-300 border border-emerald-600/40",
+                  "hover:bg-emerald-500/25 active:scale-[0.99] transition",
+                  "focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
+                ].join(" ")}
+              >
+                Analyze
+              </button>
 
-          <button
-            onClick={onSave}
-            className={[
-              "px-3 py-1.5 rounded-full text-xs font-semibold",
-              "bg-blue-500/10 text-blue-300 border border-blue-600/40",
-              "hover:bg-blue-500/20 active:scale-[0.99] transition",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500/40",
-            ].join(" ")}
-          >
-            Save
-          </button>
+              <button
+                onClick={onAutofill}
+                className={[
+                  "px-3 py-1.5 rounded-full text-xs font-semibold",
+                  "bg-indigo-500/15 text-indigo-200 border border-indigo-600/40",
+                  "hover:bg-indigo-500/25 active:scale-[0.99] transition",
+                  "focus:outline-none focus:ring-2 focus:ring-indigo-500/40",
+                ].join(" ")}
+              >
+                Autofill
+              </button>
+
+              <button
+                onClick={onSave}
+                disabled={saveState === "pending"}
+                className={[
+                  "px-3 py-1.5 rounded-full text-xs font-semibold",
+                  "bg-blue-500/10 text-blue-300 border border-blue-600/40",
+                  saveState === "pending"
+                    ? "opacity-70 cursor-wait"
+                    : "hover:bg-blue-500/20 active:scale-[0.99] transition",
+                  "focus:outline-none focus:ring-2 focus:ring-blue-500/40",
+                ].join(" ")}
+              >
+                {saveState === "pending" ? "Saving…" : "Save"}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onAssist}
+              className={[
+                "px-3 py-1.5 rounded-full text-xs font-semibold",
+                "bg-amber-500/15 text-amber-200 border border-amber-600/40",
+                "hover:bg-amber-500/25 active:scale-[0.99] transition",
+                "focus:outline-none focus:ring-2 focus:ring-amber-500/40",
+              ].join(" ")}
+            >
+              Assist to map
+            </button>
+          )}
 
           <div className="relative">
             <button
@@ -285,13 +413,23 @@ function Banner({
                 >
                   Disable on this site
                 </button>
-                <button
-                  onClick={openSidePanel}
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-neutral-800"
-                  role="menuitem"
-                >
-                  Open Side Panel
-                </button>
+                {mode === "detected" ? (
+                  <button
+                    onClick={openSidePanel}
+                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-neutral-800"
+                    role="menuitem"
+                  >
+                    Open Side Panel
+                  </button>
+                ) : (
+                  <button
+                    onClick={onAssist}
+                    className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-neutral-800"
+                    role="menuitem"
+                  >
+                    Assist to map
+                  </button>
+                )}
               </div>
             ) : null}
           </div>

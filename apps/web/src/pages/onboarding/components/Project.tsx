@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2 } from "lucide-react";
-import type { ProjectItem, LinkItem } from "../types"; // <-- Assumed type update
+import type { ProjectItem } from "../types"; // <-- Assumed type update
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 
 // --- Type Assumptions ---

@@ -56,15 +56,16 @@ export function runDetection(ctx: DetectorContext): DetectionResult | null {
     const isDetail = det.isJobDetail ? det.isJobDetail(ctx) : true;
     if (!isDetail && !hasJsonLd) continue;
 
+    const extracted = det.extract(ctx);
     const fields: JobFields = {
-      ...det.extract(ctx),
+      ...extracted,
       // Prefer JSON-LD when present; DOM fills gaps
-      title: jsonLdFields.title ?? det.extract(ctx).title,
-      company: jsonLdFields.company ?? det.extract(ctx).company,
-      location: jsonLdFields.location ?? det.extract(ctx).location,
-      description: jsonLdFields.description ?? det.extract(ctx).description,
-      applyUrl: jsonLdFields.applyUrl ?? det.extract(ctx).applyUrl,
-      postingDate: jsonLdFields.postingDate ?? det.extract(ctx).postingDate,
+      title: jsonLdFields.title ?? extracted.title,
+      company: jsonLdFields.company ?? extracted.company,
+      location: jsonLdFields.location ?? extracted.location,
+      description: jsonLdFields.description ?? extracted.description,
+      applyUrl: jsonLdFields.applyUrl ?? extracted.applyUrl,
+      postingDate: jsonLdFields.postingDate ?? extracted.postingDate,
     };
 
     const signatureScore = det.signatureScore?.(ctx) ?? 0;

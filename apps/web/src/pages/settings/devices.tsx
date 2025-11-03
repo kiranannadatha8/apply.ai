@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { post } from "../../app/api";
 import { useAuth } from "../../stores/auth";
 
 export default function Devices() {

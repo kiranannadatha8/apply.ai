@@ -54,9 +54,7 @@ const Wrapper = ({
   profile,
   setProfile,
   analyzing,
-  setAnalyzing,
   error,
-  setError,
   handleResumeUpload,
   updateEducation,
   updateExperience,
@@ -106,20 +104,9 @@ const Wrapper = ({
       {currentStep === "details" ? (
         <DetailsStep
           contact={profile.contact}
-          onAdd={() =>
-            setProfile((prev) => ({
-              ...prev,
-              contact: {
-                ...prev.contact,
-                links: {
-                  value: [],
-                  confidence: 1,
-                  source: "user",
-                },
-              },
-            }))
-          }
-          onRemove={() => {}}
+          onAddLink={onAddLink}
+          onRemoveLink={onRemoveLink}
+          onUpdateLink={onUpdateLink}
           onUpdate={updateDetails}
         />
       ) : null}

@@ -8,3 +8,4 @@ export const jobsExtRouter = Router();
 jobsExtRouter.use(requireExt);
 
 jobsExtRouter.post("/save", asyncWrap(ext.saveFromExtension));
+jobsExtRouter.post("/apply", asyncWrap(ext.applyFromExtension));
