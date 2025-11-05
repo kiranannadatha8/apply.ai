@@ -48,6 +48,7 @@ export interface DetectionResult {
   confidence: number; // 0..1
   timeToDetectMs: number;
   timestamp: number;
+  plan: { monthlyLimit: number; monthlyUsed: number };
 }
 
 export interface TelemetryEvent {

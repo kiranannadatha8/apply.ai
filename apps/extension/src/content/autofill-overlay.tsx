@@ -18,8 +18,12 @@ import {
   type StoredResumeVariant,
 } from "../lib/autofill/resume-library";
 import { loadJobRecord, saveJobRecord } from "../lib/storage/jobStore";
+import { logTimelineEvent } from "@/lib/storage/timelineStore";
 import type { JobAnalysisRecord } from "../lib/storage/jobStore";
 import { nanoid } from "../lib/autofill/utils";
+import { promptManualAssist } from "./manual-assist";
+import { usePanelStore } from "@/state/panel-store";
+import { createShadowHost } from "./shadow-root";
 
 type AutofillPayload = {
   detection: DetectionResult;
@@ -30,25 +34,41 @@ type Phase = "preview" | "running" | "success" | "error";
 type ResumeOption = ResumeVariant & { dataBase64?: string };
 
 let host: HTMLDivElement | null = null;
+let shadow: ShadowRoot | null = null;
+let mountNode: HTMLDivElement | null = null;
 let root: ReturnType<typeof createRoot> | null = null;
 
 export function closeAutofillOverlay() {
-  if (root && host) {
+  if (root) {
+    root.render(null);
     root.unmount();
+  }
+  if (host) {
     host.remove();
   }
   root = null;
   host = null;
+  shadow = null;
+  mountNode = null;
 }
 
 export function openAutofillOverlay(payload: AutofillPayload) {
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "applyai-autofill-root";
+  if (!host || !shadow || !mountNode) {
+    const scope = createShadowHost("applyai-autofill-root");
+    host = scope.host;
+    shadow = scope.shadow;
+    mountNode = document.createElement("div");
+    shadow.appendChild(mountNode);
     document.documentElement.appendChild(host);
-    root = createRoot(host);
+  } else if (!host.isConnected) {
+    document.documentElement.appendChild(host);
   }
-  root!.render(<Overlay detection={payload.detection} />);
+
+  if (!root && mountNode) {
+    root = createRoot(mountNode);
+  }
+
+  root?.render(<Overlay detection={payload.detection} />);
 }
 
 function Overlay({ detection }: { detection: DetectionResult }) {
@@ -69,6 +89,7 @@ function Overlay({ detection }: { detection: DetectionResult }) {
   const filePickerRef = useRef<HTMLInputElement | null>(null);
   const [applyState, setApplyState] = useState<"idle" | "pending" | "done">("idle");
   const [applyFeedback, setApplyFeedback] = useState<string | null>(null);
+  const setAutofillStatus = usePanelStore((s) => s.setAutofillStatus);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,6 +230,13 @@ function Overlay({ detection }: { detection: DetectionResult }) {
   const onConfirm = async () => {
     if (!prepared) return;
     setPhase("running");
+    setAutofillStatus("pending");
+    chrome.runtime
+      .sendMessage({
+        type: "applyai.action.state",
+        payload: { state: "loading" },
+      })
+      .catch(() => {});
     setError(null);
     setResult(null);
     setProgress(5);
@@ -226,7 +254,20 @@ function Overlay({ detection }: { detection: DetectionResult }) {
       window.clearInterval(timer);
       setProgress(100);
       setPhase("success");
+      setAutofillStatus("completed");
+      chrome.runtime
+        .sendMessage({
+          type: "applyai.action.state",
+          payload: { state: "detected" },
+        })
+        .catch(() => {});
       setResult(applyResult);
+      logTimelineEvent({
+        type: "autofilled",
+        title: prepared.detection.fields.title ?? prepared.detection.url,
+        url: prepared.detection.url,
+        metadata: { filled: applyResult.filledFieldIds.length },
+      }).catch(() => {});
       chrome.runtime
         .sendMessage({
           type: "applyai.autofill.completed",
@@ -251,25 +292,31 @@ function Overlay({ detection }: { detection: DetectionResult }) {
       setPhase("error");
       setProgress(0);
       setError(err instanceof Error ? err.message : "Autofill failed");
+      setAutofillStatus("error");
+      chrome.runtime
+        .sendMessage({
+          type: "applyai.action.state",
+          payload: { state: "default" },
+        })
+        .catch(() => {});
     }
   };
 
   const onAssist = () => {
-    chrome.runtime
-      .sendMessage({
-        type: "applyai.assistToMap",
-        payload: { url: detection.url, board: detection.board },
-      })
-      .catch(() => {});
+    closeAutofillOverlay();
+    setAutofillStatus("idle");
+    promptManualAssist();
   };
 
   const onClose = () => {
     closeAutofillOverlay();
+    setAutofillStatus("idle");
   };
 
   const onCancel = () => {
     if (phase === "running") return;
     closeAutofillOverlay();
+    setAutofillStatus("idle");
   };
 
   const onMarkApplied = () => {

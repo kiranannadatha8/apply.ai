@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation, useQuery, type UseQueryOptions, useQueryClient } from "@tanstack/react-query";
 import {
   fetchJobBoard,
@@ -20,6 +21,11 @@ import type {
   JobRecord,
   JobStatus,
 } from "./types";
+import {
+  computeJobInsights,
+  type InsightRangeKey,
+  type JobInsightsSummary,
+} from "./analytics";
 
 export function useJobBoardQuery(
   filters: BoardFilters = {},
@@ -186,4 +192,27 @@ export function useJobDetailQuery(
     staleTime: 10_000,
     ...options,
   });
+}
+
+interface UseJobInsightsOptions {
+  rangeKey: InsightRangeKey;
+}
+
+export function useJobInsights({ rangeKey }: UseJobInsightsOptions) {
+  const { data, isLoading, error, isFetching } = useJobListQuery(
+    { limit: 1000 },
+    { staleTime: 5 * 60 * 1000 },
+  );
+
+  const insights = useMemo<JobInsightsSummary | null>(() => {
+    if (!data?.items) return null;
+    return computeJobInsights(data.items, rangeKey);
+  }, [data?.items, rangeKey]);
+
+  return {
+    data: insights,
+    isLoading,
+    isFetching,
+    error,
+  };
 }

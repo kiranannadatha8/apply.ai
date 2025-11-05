@@ -9,6 +9,7 @@ import {
   type JobAnalysisRecord,
 } from "../lib/storage/jobStore";
 import { emitAnalysisTelemetry } from "../lib/telemetry-analysis";
+import { createShadowHost } from "./shadow-root";
 
 type LaunchPayload = {
   url: string;
@@ -21,24 +22,38 @@ type LaunchPayload = {
 
 let root: ReturnType<typeof createRoot> | null = null;
 let host: HTMLDivElement | null = null;
+let shadow: ShadowRoot | null = null;
+let mountNode: HTMLDivElement | null = null;
 
 export function openAnalysisPanel(payload: LaunchPayload) {
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "applyai-analysis-root";
+  if (!host || !shadow || !mountNode) {
+    const scope = createShadowHost("applyai-analysis-root");
+    host = scope.host;
+    shadow = scope.shadow;
+    mountNode = document.createElement("div");
+    shadow.appendChild(mountNode);
     document.documentElement.appendChild(host);
-    root = createRoot(host);
+  } else if (!host.isConnected) {
+    document.documentElement.appendChild(host);
   }
-  root!.render(<Panel payload={payload} />);
+  if (!root && mountNode) {
+    root = createRoot(mountNode);
+  }
+  root?.render(<Panel payload={payload} />);
 }
 
 export function closeAnalysisPanel() {
-  if (root && host) {
+  if (root) {
+    root.render(null);
     root.unmount();
+  }
+  if (host) {
     host.remove();
   }
   root = null;
   host = null;
+  shadow = null;
+  mountNode = null;
 }
 
 function Ring({ value }: { value: number }) {
@@ -217,6 +232,7 @@ function Panel({ payload }: { payload: LaunchPayload }) {
         bullets,
         coverNote: cover,
         updatedAt: Date.now(),
+        createdAt: Date.now(),
         tokens: { in: usage.in ?? 0, out: usage.out ?? 0, model: usage.model },
       };
       await saveJobRecord(rec);

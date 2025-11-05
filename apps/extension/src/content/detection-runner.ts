@@ -5,8 +5,8 @@ import type {
   Settings,
   SupportedBoard,
 } from "../lib/detect/types";
+import { setCurrentDetection } from "../lib/detect/context";
 import { emitTelemetry } from "../lib/telemetry";
-import { mountDetectionBanner } from "./banner";
 
 const SETTINGS_KEY = "applyai.settings.v1";
 const DEFAULTS: Settings = {
@@ -57,8 +57,6 @@ function hasSubstantialJD(html?: string): boolean {
   return text.length >= 120;
 }
 
-let lastBannerKey = "";
-
 async function loadSettings(): Promise<Settings> {
   try {
     const { [SETTINGS_KEY]: s } = await chrome.storage.local.get(SETTINGS_KEY);
@@ -69,42 +67,31 @@ async function loadSettings(): Promise<Settings> {
 }
 
 bootstrapDetection(async (det: DetectionResult | null) => {
-  if (!det) return;
+  if (!det) {
+    setCurrentDetection(null);
+    chrome.runtime
+      .sendMessage({ type: "applyai.action.state", payload: { state: "default" } })
+      .catch(() => {});
+    return;
+  }
+
+  setCurrentDetection(det);
 
   // AC5: telemetry always
   emitTelemetry(det).catch(() => {});
-
   const settings = await loadSettings();
-  if (!settings.bannerEnabled) return;
-
-  // Confidence & page-cue gates
-  const confFloor = Math.max(0.5, settings.confidenceThreshold ?? 0.6); // never below 0.5
+  const confFloor = Math.max(0.5, settings.confidenceThreshold ?? 0.6);
   const strongJD = hasSubstantialJD(det.fields.description);
   const applyCue = hasApplyCue(document);
   const hasSignals = strongJD || applyCue;
   const supported = isSupportedBoard(det.board);
 
-  let mode: "detected" | "assist" | null = null;
-  let message: string | undefined;
+  const actionable = supported && det.confidence >= confFloor && hasSignals;
 
-  if (supported && det.confidence >= confFloor && hasSignals) {
-    mode = "detected";
-  } else if ((supported || det.board === "generic") && hasSignals) {
-    if (det.confidence < confFloor && det.confidence >= Math.max(0.2, confFloor - 0.3)) {
-      mode = "assist";
-      message = supported
-        ? "Confidence is below your threshold. Map the fields to improve detection."
-        : "Help map this page so ApplyAI can support it.";
-    }
-  }
-
-  if (!mode) return;
-
-  // Dedupe by URL
-  const key = `${mode}:${det.url}`;
-  if (lastBannerKey === key) return;
-  lastBannerKey = key;
-
-  // Still within AC1: we run from DOM ready and fast detector passes
-  mountDetectionBanner({ detection: det, mode, message });
+  chrome.runtime
+    .sendMessage({
+      type: "applyai.action.state",
+      payload: { state: actionable ? "detected" : "default" },
+    })
+    .catch(() => {});
 });

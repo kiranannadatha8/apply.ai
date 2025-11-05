@@ -37,7 +37,12 @@ export const DUMMY_JOBS: JobApi[] = [
     interviewAt: null,
     offerAt: null,
     rejectedAt: null,
-    metadata: { workspaceId: DEMO_WORKSPACE_ID_VALUE, resumeVariantLabel: "Robotics Resume" },
+    metadata: {
+      workspaceId: DEMO_WORKSPACE_ID_VALUE,
+      resumeVariantLabel: "Robotics Resume",
+      companySize: "STARTUP",
+      roleCategory: "Robotics Engineer",
+    },
   },
   {
     id: "job-demo-002",
@@ -69,7 +74,13 @@ export const DUMMY_JOBS: JobApi[] = [
     interviewAt: null,
     offerAt: null,
     rejectedAt: null,
-    metadata: { workspaceId: DEMO_WORKSPACE_ID_VALUE, resumeVariantLabel: "Platform Resume" },
+    metadata: {
+      workspaceId: DEMO_WORKSPACE_ID_VALUE,
+      resumeVariantLabel: "Platform Resume",
+      companySize: "MID",
+      roleCategory: "DevOps Engineer",
+      locationBucket: "Remote (US)",
+    },
   },
   {
     id: "job-demo-003",
@@ -101,7 +112,12 @@ export const DUMMY_JOBS: JobApi[] = [
     interviewAt: daysAgo(1),
     offerAt: null,
     rejectedAt: null,
-    metadata: { workspaceId: DEMO_WORKSPACE_ID_VALUE, resumeVariantLabel: "Data Resume" },
+    metadata: {
+      workspaceId: DEMO_WORKSPACE_ID_VALUE,
+      resumeVariantLabel: "Data Resume",
+      companySize: "ENTERPRISE",
+      roleCategory: "Data Scientist",
+    },
   },
   {
     id: "job-demo-004",
@@ -133,7 +149,12 @@ export const DUMMY_JOBS: JobApi[] = [
     interviewAt: daysAgo(5),
     offerAt: daysAgo(0.5),
     rejectedAt: null,
-    metadata: { workspaceId: DEMO_WORKSPACE_ID_VALUE, resumeVariantLabel: "Product Resume" },
+    metadata: {
+      workspaceId: DEMO_WORKSPACE_ID_VALUE,
+      resumeVariantLabel: "Product Resume",
+      companySize: "MID",
+      roleCategory: "Product Manager",
+    },
   },
   {
     id: "job-demo-005",
@@ -165,7 +186,12 @@ export const DUMMY_JOBS: JobApi[] = [
     interviewAt: daysAgo(20),
     offerAt: null,
     rejectedAt: daysAgo(10),
-    metadata: { workspaceId: DEMO_WORKSPACE_ID_VALUE, resumeVariantLabel: "DevOps Resume" },
+    metadata: {
+      workspaceId: DEMO_WORKSPACE_ID_VALUE,
+      resumeVariantLabel: "DevOps Resume",
+      companySize: "ENTERPRISE",
+      roleCategory: "DevOps Engineer",
+    },
   },
 ];
 

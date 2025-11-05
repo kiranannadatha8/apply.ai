@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { DetectionResult } from "../lib/detect/types";
+import { promptManualAssist } from "./manual-assist";
 
 /** ============== Types ============== */
 export type BannerMode = "detected" | "assist";
@@ -232,12 +233,7 @@ function Banner({
   };
 
   const onAssist = () => {
-    chrome.runtime
-      .sendMessage({
-        type: "applyai.assistToMap",
-        payload: { url: det.url, board: det.board, confidence: det.confidence },
-      })
-      .catch(() => {});
+    promptManualAssist();
     setMenuOpen(false);
   };
 

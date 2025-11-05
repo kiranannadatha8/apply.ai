@@ -1,42 +1,42 @@
-import { useState } from "react";
-import { useAuth } from "../stores/auth";
+// apps/web/src/pages/dashboard/components/ConnectExtension.tsx
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
-export function ConnectExtensionBanner() {
-  const token = useAuth((s) => s.accessToken);
-  const [code, setCode] = useState<string | null>(null);
-  if (!token) return null;
-  async function gen() {
-    const r = await fetch(
-      `${import.meta.env.VITE_API_URL}/v1/auth/ext/handshake/create`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "x-csrf-token":
-            document.cookie.match(/csrf_token=([^;]+)/)?.[1] ?? "",
-        },
-        credentials: "include",
-      },
-    );
-    if (!r.ok) return;
-    const d = await r.json();
-    setCode(d.code);
-    try {
-      await navigator.clipboard.writeText(d.code);
-    } catch {}
-  }
+export function ConnectExtension({ connected }: { connected: boolean }) {
   return (
-    <div className="p-3 rounded border flex items-center justify-between">
-      <div>
-        <div className="font-medium">Connect your Chrome extension</div>
-        <div className="text-sm text-slate-500">
-          Generate a code and paste it in the extension popup.
+    <Card className="rounded-2xl shadow-sm overflow-hidden xl:col-span-1 relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 via-fuchsia-500/10 to-emerald-500/10 pointer-events-none" />
+      <CardContent className="relative p-5">
+        <div className="text-sm font-medium">Extension</div>
+        <p className="text-xs text-muted-foreground">
+          {connected
+            ? "Your browser extension is connected. You're good to go!"
+            : "Connect the Chrome extension to auto-detect job pages and autofill forms."}
+        </p>
+        <div className="mt-4 flex gap-2">
+          {!connected ? (
+            <>
+              <Link to="/settings">
+                <Button className="rounded-xl">Connect</Button>
+              </Link>
+              <a
+                href="https://chromewebstore.google.com/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Button variant="secondary" className="rounded-xl">
+                  Get Extension
+                </Button>
+              </a>
+            </>
+          ) : (
+            <Link to="/jobs">
+              <Button className="rounded-xl">Open Job Board</Button>
+            </Link>
+          )}
         </div>
-      </div>
-      <button className="border px-3 py-1.5 rounded" onClick={gen}>
-        Generate code
-      </button>
-      {code && <span className="ml-3 font-mono">{code}</span>}
-    </div>
+      </CardContent>
+    </Card>
   );
 }

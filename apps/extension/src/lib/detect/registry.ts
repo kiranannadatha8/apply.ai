@@ -88,6 +88,7 @@ export function runDetection(ctx: DetectorContext): DetectionResult | null {
         confidence,
         timeToDetectMs,
         timestamp: Date.now(),
+        plan: { monthlyLimit: 0, monthlyUsed: 0 },
       };
     }
   }
@@ -107,6 +108,7 @@ export function runDetection(ctx: DetectorContext): DetectionResult | null {
       }),
       timeToDetectMs: Math.round(performance.now() - started),
       timestamp: Date.now(),
+      plan: { monthlyLimit: 0, monthlyUsed: 0 },
     };
   }
 

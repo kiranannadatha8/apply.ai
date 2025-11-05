@@ -12,11 +12,11 @@ import {
 } from "@/components/ui/input-group";
 
 const NAV_ITEMS: { label: string; to: string }[] = [
-  { label: "Job Board", to: "/" },
-  { label: "Notes", to: "/notes" },
-  { label: "Contacts", to: "/contacts" },
+  { label: "Insights", to: "/" },
+  { label: "Job Board", to: "/job-board" },
   { label: "Resumes", to: "/resumes" },
-  { label: "Calendar", to: "/calendar" },
+  { label: "Profiles", to: "/profiles" },
+  { label: "Settings", to: "/settings" },
 ];
 
 function SegmentedNav() {

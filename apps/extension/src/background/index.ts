@@ -1,25 +1,36 @@
-// Minimal background to log telemetry and (optionally) forward to an API later.
-chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
-  if (msg?.type === "applyai.telemetry") {
-    // Dev log
-    console.debug("[ApplyAI][telemetry]", msg.payload);
+// Minimal background to log telemetry and manage browser-action state.
+type ActionState = "default" | "detected" | "loading";
+
+let currentActionState: ActionState = "default";
+
+function setActionState(state: ActionState) {
+  if (state === currentActionState) return;
+  currentActionState = state;
+  switch (state) {
+    case "detected":
+      chrome.action.setBadgeBackgroundColor({ color: "#22c55e" });
+      chrome.action.setBadgeText({ text: "●" });
+      chrome.action.setTitle({ title: "ApplyAI – Job detected" });
+      break;
+    case "loading":
+      chrome.action.setBadgeBackgroundColor({ color: "#3b82f6" });
+      chrome.action.setBadgeText({ text: "…" });
+      chrome.action.setTitle({ title: "ApplyAI – Working" });
+      break;
+    default:
+      chrome.action.setBadgeText({ text: "" });
+      chrome.action.setTitle({ title: "ApplyAI" });
+      break;
   }
-  if (msg?.type === "applyai.analyzeJob") {
-    // If banner sends only URL, we can pull JD from content tab via another message.
-    // For MVP we assume the content side has JD in memory and will open directly.
-    if (_sender.tab?.id) {
-      chrome.tabs.sendMessage(_sender.tab.id, {
-        type: "applyai.analyzeJob",
-        payload: msg.payload,
-      });
-    }
-  }
-  if (msg?.type === "applyai.assistToMap") {
-    // Open ApplyAI mapping UI (E07) — placeholder route for now
-    chrome.tabs.create({
-      url: `https://app.applyai.local/mapping?src=${encodeURIComponent(msg.payload.url)}`,
-    });
-  }
+}
+
+setActionState("default");
+
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab.id) return;
+  chrome.tabs
+    .sendMessage(tab.id, { type: "applyai.panel.toggle" })
+    .catch(() => {});
 });
 import type { DetectionResult } from "../lib/detect/types";
 import { getExtToken } from "../services/storage";
@@ -412,19 +423,6 @@ chrome.runtime.onMessage.addListener((msg, sender, _sendResponse) => {
     case "applyai.telemetry":
       console.debug("[ApplyAI][telemetry]", msg.payload);
       break;
-    case "applyai.analyzeJob":
-      if (sender.tab?.id) {
-        chrome.tabs.sendMessage(sender.tab.id, {
-          type: "applyai.analyzeJob",
-          payload: msg.payload,
-        });
-      }
-      break;
-    case "applyai.assistToMap":
-      chrome.tabs.create({
-        url: `https://app.applyai.local/mapping?src=${encodeURIComponent(msg.payload.url)}`,
-      });
-      break;
     case "applyai.saveJob":
       if (msg.payload?.detection) {
         handleSaveJob(msg.payload.detection as DetectionResult, sender.tab?.id);
@@ -434,6 +432,9 @@ chrome.runtime.onMessage.addListener((msg, sender, _sendResponse) => {
       if (msg.payload?.jobUrl) {
         handleApplyJob(msg.payload, sender.tab?.id);
       }
+      break;
+    case "applyai.action.state":
+      setActionState(msg.payload?.state ?? "default");
       break;
     case "applyai.autofill.completed":
       recordAutofillAudit({
